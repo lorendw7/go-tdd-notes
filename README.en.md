@@ -4,7 +4,7 @@
 
 Personal exercises following Chris James's *Learn Go with Tests*. Each topic has its own Go package with tests alongside the implementation.
 
-**Current progress: Iteration.** The greetings and integers exercises are complete; the current topic is `for` loops and benchmarks.
+**Current progress: Arrays and slices.** The greetings, integers, and iteration exercises are complete; the current topic is slices, variadic arguments, and slicing operations.
 
 ## Prerequisites
 
@@ -34,6 +34,12 @@ Run the iteration benchmark:
 
 ```powershell
 go test -bench "." ./lessons/iteration
+```
+
+Run the arrays and slices exercise:
+
+```powershell
+go test -v ./lessons/arrays
 ```
 
 Useful variations:
@@ -89,9 +95,12 @@ Open <http://localhost:8000> after it starts and press `Ctrl+C` to stop it. Mode
 | [01 Greetings](lessons/hello) | `Hello(name, language)` supports English and Spanish, defaulting an empty name to `World`. |
 | [02 Integers](lessons/integers) | Use `Add` to learn integer return values, the `ExampleAdd` example test, and documentation comments for exported functions. |
 | [03 Iteration](lessons/iteration) | Use `for` to repeat a string and `BenchmarkRepeat` to measure its average execution time. |
+| [04 Arrays and slices](lessons/arrays) | Use `Sum`, `SumAll`, and `SumAllTails` to learn slices, variadic arguments, `append`, slice tails, and slice comparison. |
 
 The greetings exercise uses `t.Run` to organize scenarios as subtests, `t.Helper()` to mark the shared assertion helper, and a `switch` to choose the language-specific greeting prefix. Failures can therefore identify both the scenario and the assertion call site.
 
 Benchmark functions must live in a `_test.go` file, start with `Benchmark`, and accept `*testing.B`. Run one with `go test -bench "." ./lessons/iteration`; the reported `ns/op` is the average number of nanoseconds per operation. Plain `go test` runs functional tests but does not execute benchmarks.
+
+The arrays exercise replaces a fixed-length `[5]int` with an arbitrary-length `[]int`. `SumAll(numbersToSum ...[]int)` accepts any number of slices and returns one total for each; `SumAllTails` uses `numbers[1:]` to omit the first element while safely handling empty slices. Tests use `reflect.DeepEqual` to compare slice contents.
 
 Original exercises are available under the [MIT license](LICENSE).
