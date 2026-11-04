@@ -4,7 +4,7 @@
 
 跟随 Chris James 的《Learn Go with Tests》练习测试驱动开发。每个主题使用独立的 Go 包，测试和实现放在同一目录。
 
-**当前进度：数组与切片章节。** 已完成问候语、整数和迭代练习，正在学习切片、可变参数和切片操作。
+**当前进度：结构体、方法与接口章节。** 已完成问候语、整数、迭代和数组练习，正在学习用共同接口处理不同形状。
 
 ## 环境准备
 
@@ -40,6 +40,12 @@ go test -bench "." ./lessons/iteration
 
 ```powershell
 go test -v ./lessons/arrays
+```
+
+运行结构体与接口练习：
+
+```powershell
+go test -v ./lessons/structs
 ```
 
 常用选项：
@@ -96,11 +102,14 @@ godoc -http=:8000
 | [02 整数](lessons/integers) | 用 `Add` 学习整数返回值、`ExampleAdd` 示例测试和可导出函数的文档注释。 |
 | [03 迭代](lessons/iteration) | 用 `for` 重复字符串，并通过 `BenchmarkRepeat` 测量平均执行时间。 |
 | [04 数组与切片](lessons/arrays) | 用 `Sum`、`SumAll` 和 `SumAllTails` 学习切片、可变参数、`append`、切片尾部和切片比较。 |
+| [05 结构体、方法与接口](lessons/structs) | 为矩形、圆形和三角形实现 `Area` 方法，通过 `Shape` 接口和表驱动子测试验证共同的面积行为。 |
 
 问候语练习用 `t.Run` 将不同场景组织为子测试，用 `t.Helper()` 标记共享的断言辅助函数，并通过 `switch` 选择不同语言的问候前缀。这样测试失败时会指出具体场景和调用测试辅助函数的位置。
 
 基准测试函数必须放在 `_test.go` 文件中，以 `Benchmark` 开头并接收 `*testing.B`。用 `go test -bench "." ./lessons/iteration` 运行；输出中的 `ns/op` 表示每次操作平均耗费的纳秒数。普通 `go test` 只运行功能测试，不会执行基准测试。
 
 数组练习将固定长度的 `[5]int` 改成任意长度的 `[]int`。`SumAll(numbersToSum ...[]int)` 接收任意数量的切片，并为每个切片返回一个总和；`SumAllTails` 使用 `numbers[1:]` 忽略第一个元素，并安全处理空切片。测试用 `reflect.DeepEqual` 比较两个切片的内容。
+
+结构体练习用字段描述 `Rectangle`、`Circle` 和 `Triangle`，并为每种类型定义返回 `float64` 的 `Area()` 方法。只要类型实现这个方法，就会自动满足 `Shape` 接口。测试把名称、形状和期望面积放入表格，通过 `t.Run` 对所有形状运行相同的断言。
 
 原创练习采用 [MIT 许可证](LICENSE)。
