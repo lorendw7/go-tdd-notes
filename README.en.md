@@ -4,6 +4,8 @@
 
 Personal exercises following Chris James's *Learn Go with Tests*. Each topic has its own Go package with tests alongside the implementation.
 
+**Current progress: Integers.** The greetings exercise is saved in the repository, and the integers exercise is in progress.
+
 ## Prerequisites
 
 The module requires Go 1.25 or newer and is currently practiced with Go 1.26. Confirm the installation first:
@@ -38,6 +40,7 @@ Useful variations:
 | `go test -count=1 ./...` | Bypass the test cache and run again |
 | `go test -cover ./...` | Report test coverage |
 | `go test -run '^TestHello$' ./lessons/hello` | Run one named test |
+| `go test -v -run 'TestHello/in Spanish' ./lessons/hello` | Run one named subtest |
 
 Test files end in `_test.go`; test functions start with `Test` and accept `t *testing.T`. The basic TDD loop is to write a failing test, add the smallest implementation that passes, and then refactor under the protection of the tests.
 
@@ -77,8 +80,11 @@ Open <http://localhost:8000> after it starts and press `Ctrl+C` to stop it. Mode
 
 | Exercise | Observation |
 | --- | --- |
-| [01 Greetings](lessons/hello) | Start with `TestHello`, specifying the greeting returned by `Hello("Chris")`. |
+| [01 Greetings](lessons/hello) | `Hello(name, language)` supports English and Spanish, defaulting an empty name to `World`. |
+| 02 Integers (in progress) | Use an addition function to learn integer return values, useful failure messages, and documentation comments for exported functions. |
 
-Next exercise: specify the default greeting for an empty name with a new failing test, make it pass, and then refactor under test protection.
+The exercise uses `t.Run` to organize scenarios as subtests, `t.Helper()` to mark the shared assertion helper, and a `switch` to choose the language-specific greeting prefix. Failures can therefore identify both the scenario and the assertion call site.
+
+Next step: after completing the integers chapter, save its implementation and tests as a separate `lessons/integers` package.
 
 Original exercises are available under the [MIT license](LICENSE).

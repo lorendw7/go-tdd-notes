@@ -4,6 +4,8 @@
 
 跟随 Chris James 的《Learn Go with Tests》练习测试驱动开发。每个主题使用独立的 Go 包，测试和实现放在同一目录。
 
+**当前进度：整数章节。** 仓库中已保存问候语练习，整数练习正在学习中。
+
 ## 环境准备
 
 项目要求 Go 1.25 或更高版本，目前使用 Go 1.26 练习。安装后先确认命令可用：
@@ -38,6 +40,7 @@ go test -v ./lessons/hello
 | `go test -count=1 ./...` | 忽略测试缓存，强制重新运行 |
 | `go test -cover ./...` | 显示测试覆盖率 |
 | `go test -run '^TestHello$' ./lessons/hello` | 只运行指定测试 |
+| `go test -v -run 'TestHello/in Spanish' ./lessons/hello` | 只运行指定子测试 |
 
 测试文件以 `_test.go` 结尾，测试函数以 `Test` 开头，并接收 `t *testing.T`。TDD 的基本循环是：先写一个失败的测试，写最少的代码让它通过，再在测试保护下重构。
 
@@ -77,8 +80,11 @@ godoc -http=:8000
 
 | 练习 | 要点 |
 | --- | --- |
-| [01 问候语](lessons/hello) | 从 `TestHello` 开始，用测试描述 `Hello("Chris")` 应返回的问候语。 |
+| [01 问候语](lessons/hello) | `Hello(name, language)` 支持英文和西班牙语，并在名字为空时默认问候 `World`。 |
+| 02 整数（学习中） | 通过加法函数学习整数返回值、测试失败信息和可导出函数的文档注释。 |
 
-下一步：用新的失败测试描述空名字的默认问候语，让测试通过，再在测试保护下重构。
+当前练习用 `t.Run` 将不同场景组织为子测试，用 `t.Helper()` 标记共享的断言辅助函数，并通过 `switch` 选择不同语言的问候前缀。这样测试失败时会指出具体场景和调用测试辅助函数的位置。
+
+下一步：完成整数章节后，将实现和测试保存为独立的 `lessons/integers` 包。
 
 原创练习采用 [MIT 许可证](LICENSE)。
