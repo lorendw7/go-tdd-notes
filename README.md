@@ -4,21 +4,81 @@
 
 跟随 Chris James 的《Learn Go with Tests》练习测试驱动开发。每个主题使用独立的 Go 包，测试和实现放在同一目录。
 
-## 本地练习
+## 环境准备
 
-使用 Go 1.26，在仓库根目录运行：
+项目要求 Go 1.25 或更高版本，目前使用 Go 1.26 练习。安装后先确认命令可用：
 
-```sh
+```powershell
+go version
+```
+
+项目由根目录的 [`go.mod`](go.mod) 定义，因此不需要放进 `GOPATH`。进入仓库根目录后，Go 会自动识别模块。
+
+## 快速开始
+
+在仓库根目录运行全部测试：
+
+```powershell
 go test ./...
+```
+
+运行 `hello` 练习并显示每个测试：
+
+```powershell
 go test -v ./lessons/hello
 ```
+
+常用选项：
+
+| 命令 | 用途 |
+| --- | --- |
+| `go test` | 测试当前目录中的包 |
+| `go test ./...` | 测试当前模块及所有子目录 |
+| `go test -v ./...` | 显示每个测试的运行结果 |
+| `go test -count=1 ./...` | 忽略测试缓存，强制重新运行 |
+| `go test -cover ./...` | 显示测试覆盖率 |
+| `go test -run '^TestHello$' ./lessons/hello` | 只运行指定测试 |
+
+测试文件以 `_test.go` 结尾，测试函数以 `Test` 开头，并接收 `t *testing.T`。TDD 的基本循环是：先写一个失败的测试，写最少的代码让它通过，再在测试保护下重构。
+
+## 包与目录
+
+当前练习的结构如下：
+
+```text
+lessons/
+└── hello/
+    ├── hello.go
+    └── hello_test.go
+```
+
+两个文件都声明 `package hello`，表示它们属于同一个 Go 包。一个目录中的普通 Go 文件必须使用相同的包名；测试因此可以直接调用同包中的 `Hello` 函数。
+
+## 查看 Go 文档
+
+Go 自带命令行文档工具：
+
+```powershell
+go doc ./lessons/hello
+go doc ./lessons/hello.Hello
+go doc testing.T.Errorf
+```
+
+教材中的 `godoc` 网页服务器不是 Go 安装包自带的命令，需要另外安装：
+
+```powershell
+go install golang.org/x/tools/cmd/godoc@latest
+godoc -http=:8000
+```
+
+启动后访问 <http://localhost:8000>，按 `Ctrl+C` 停止服务器。现代 Go 项目也可以使用 [`pkgsite`](https://pkg.go.dev/golang.org/x/pkgsite/cmd/pkgsite) 浏览本地文档。
 
 ## 学习记录
 
 | 练习 | 要点 |
 | --- | --- |
-| [01 问候语](lessons/hello) | 用表驱动测试描述两种行为：传入姓名时问候该人，空字符串时问候世界。 |
+| [01 问候语](lessons/hello) | 从 `TestHello` 开始，用测试描述 `Hello("Chris")` 应返回的问候语。 |
 
-下一步：为只含空格的姓名编写一个失败的测试，让它通过，再在测试保护下重构。
+下一步：用新的失败测试描述空名字的默认问候语，让测试通过，再在测试保护下重构。
 
 原创练习采用 [MIT 许可证](LICENSE)。
