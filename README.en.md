@@ -4,7 +4,7 @@
 
 Personal exercises following Chris James's *Learn Go with Tests*. Each topic has its own Go package with tests alongside the implementation.
 
-**Current progress: Integers.** The greetings exercise is saved in the repository, and the integers exercise is in progress.
+**Current progress: Iteration.** The greetings and integers exercises are complete; the current topic is `for` loops and benchmarks.
 
 ## Prerequisites
 
@@ -28,6 +28,12 @@ Run the `hello` exercise with individual test results:
 
 ```powershell
 go test -v ./lessons/hello
+```
+
+Run the iteration benchmark:
+
+```powershell
+go test -bench "." ./lessons/iteration
 ```
 
 Useful variations:
@@ -81,10 +87,11 @@ Open <http://localhost:8000> after it starts and press `Ctrl+C` to stop it. Mode
 | Exercise | Observation |
 | --- | --- |
 | [01 Greetings](lessons/hello) | `Hello(name, language)` supports English and Spanish, defaulting an empty name to `World`. |
-| 02 Integers (in progress) | Use an addition function to learn integer return values, useful failure messages, and documentation comments for exported functions. |
+| [02 Integers](lessons/integers) | Use `Add` to learn integer return values, the `ExampleAdd` example test, and documentation comments for exported functions. |
+| [03 Iteration](lessons/iteration) | Use `for` to repeat a string and `BenchmarkRepeat` to measure its average execution time. |
 
-The exercise uses `t.Run` to organize scenarios as subtests, `t.Helper()` to mark the shared assertion helper, and a `switch` to choose the language-specific greeting prefix. Failures can therefore identify both the scenario and the assertion call site.
+The greetings exercise uses `t.Run` to organize scenarios as subtests, `t.Helper()` to mark the shared assertion helper, and a `switch` to choose the language-specific greeting prefix. Failures can therefore identify both the scenario and the assertion call site.
 
-Next step: after completing the integers chapter, save its implementation and tests as a separate `lessons/integers` package.
+Benchmark functions must live in a `_test.go` file, start with `Benchmark`, and accept `*testing.B`. Run one with `go test -bench "." ./lessons/iteration`; the reported `ns/op` is the average number of nanoseconds per operation. Plain `go test` runs functional tests but does not execute benchmarks.
 
 Original exercises are available under the [MIT license](LICENSE).

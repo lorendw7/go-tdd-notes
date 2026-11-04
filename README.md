@@ -4,7 +4,7 @@
 
 跟随 Chris James 的《Learn Go with Tests》练习测试驱动开发。每个主题使用独立的 Go 包，测试和实现放在同一目录。
 
-**当前进度：整数章节。** 仓库中已保存问候语练习，整数练习正在学习中。
+**当前进度：迭代章节。** 已完成问候语和整数练习，正在学习 `for` 循环与基准测试。
 
 ## 环境准备
 
@@ -28,6 +28,12 @@ go test ./...
 
 ```powershell
 go test -v ./lessons/hello
+```
+
+运行迭代练习的基准测试：
+
+```powershell
+go test -bench "." ./lessons/iteration
 ```
 
 常用选项：
@@ -81,10 +87,11 @@ godoc -http=:8000
 | 练习 | 要点 |
 | --- | --- |
 | [01 问候语](lessons/hello) | `Hello(name, language)` 支持英文和西班牙语，并在名字为空时默认问候 `World`。 |
-| 02 整数（学习中） | 通过加法函数学习整数返回值、测试失败信息和可导出函数的文档注释。 |
+| [02 整数](lessons/integers) | 用 `Add` 学习整数返回值、`ExampleAdd` 示例测试和可导出函数的文档注释。 |
+| [03 迭代](lessons/iteration) | 用 `for` 重复字符串，并通过 `BenchmarkRepeat` 测量平均执行时间。 |
 
-当前练习用 `t.Run` 将不同场景组织为子测试，用 `t.Helper()` 标记共享的断言辅助函数，并通过 `switch` 选择不同语言的问候前缀。这样测试失败时会指出具体场景和调用测试辅助函数的位置。
+问候语练习用 `t.Run` 将不同场景组织为子测试，用 `t.Helper()` 标记共享的断言辅助函数，并通过 `switch` 选择不同语言的问候前缀。这样测试失败时会指出具体场景和调用测试辅助函数的位置。
 
-下一步：完成整数章节后，将实现和测试保存为独立的 `lessons/integers` 包。
+基准测试函数必须放在 `_test.go` 文件中，以 `Benchmark` 开头并接收 `*testing.B`。用 `go test -bench "." ./lessons/iteration` 运行；输出中的 `ns/op` 表示每次操作平均耗费的纳秒数。普通 `go test` 只运行功能测试，不会执行基准测试。
 
 原创练习采用 [MIT 许可证](LICENSE)。
