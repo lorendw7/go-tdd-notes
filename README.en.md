@@ -4,7 +4,7 @@
 
 Personal exercises following Chris James's *Learn Go with Tests*. Each topic has its own Go package with tests alongside the implementation.
 
-**Current progress: Maps.** The greetings, integers, iteration, arrays, and structs and interfaces exercises are complete; the current topic is building a dictionary with create, read, update, and delete operations.
+**Current progress: Dependency injection.** The greetings, integers, iteration, arrays, structs and interfaces, and maps exercises are complete; the current topic is injecting output destinations through an interface.
 
 ## Prerequisites
 
@@ -54,6 +54,12 @@ Run the maps dictionary exercise:
 go test -v ./lessons/maps
 ```
 
+Run the dependency injection exercise:
+
+```powershell
+go test -v ./lessons/di
+```
+
 Useful variations:
 
 | Command | Purpose |
@@ -67,6 +73,20 @@ Useful variations:
 | `go test -v -run 'TestHello/in Spanish' ./lessons/hello` | Run one named subtest |
 
 Test files end in `_test.go`; test functions start with `Test` and accept `t *testing.T`. The basic TDD loop is to write a failing test, add the smallest implementation that passes, and then refactor under the protection of the tests.
+
+## Run a Go program
+
+Most chapters in this repository are packages exercised with `go test`. An executable program must declare `package main` and provide `func main()` as its entry point. The dependency injection chapter includes a runnable HTTP server:
+
+```powershell
+go run ./lessons/di
+```
+
+Open <http://localhost:5000> after it starts to see `Hello, world`, and press `Ctrl+C` in the terminal to stop it. `go run` compiles and runs a temporary executable; to create a Windows executable instead, use:
+
+```powershell
+go build -o greeter.exe ./lessons/di
+```
 
 ## Packages and directories
 
@@ -110,6 +130,7 @@ Open <http://localhost:8000> after it starts and press `Ctrl+C` to stop it. Mode
 | [04 Arrays and slices](lessons/arrays) | Use `Sum`, `SumAll`, and `SumAllTails` to learn slices, variadic arguments, `append`, slice tails, and slice comparison. |
 | [05 Structs, methods, and interfaces](lessons/structs) | Implement `Area` methods for rectangles, circles, and triangles, then verify their shared behavior through the `Shape` interface and table-driven subtests. |
 | [06 Maps](lessons/maps) | Use `Dictionary` to search, add, update, and delete words, with custom errors distinguishing failure cases. |
+| [07 Dependency injection](lessons/di) | Pass an `io.Writer` to `Greet`, writing to an in-memory buffer in tests and an HTTP response in the server. |
 
 The greetings exercise uses `t.Run` to organize scenarios as subtests, `t.Helper()` to mark the shared assertion helper, and a `switch` to choose the language-specific greeting prefix. Failures can therefore identify both the scenario and the assertion call site.
 
@@ -120,5 +141,7 @@ The arrays exercise replaces a fixed-length `[5]int` with an arbitrary-length `[
 The structs exercise describes `Rectangle`, `Circle`, and `Triangle` with fields and gives each type an `Area() float64` method. Any type implementing that method satisfies `Shape` automatically. A table of names, shapes, and expected areas lets `t.Run` apply the same assertion to every shape.
 
 The maps exercise defines `map[string]string` as the named `Dictionary` type so search, add, update, and delete behavior can be expressed as methods. `DictionaryErr` satisfies `error` by implementing `Error() string`; the stable `ErrNotFound`, `ErrWordExists`, and `ErrWordDoesNotExist` values let tests compare exact failure cases. Shared assertions call `t.Helper()` so failures point to the scenario that invoked them.
+
+The dependency injection exercise makes `Greet` depend on the abstract `io.Writer` instead of calling `fmt.Println` directly. Both `bytes.Buffer` and `http.ResponseWriter` implement that interface, so the same greeting logic is easy to test and reuse in an HTTP response. Although the code is an executable `package main`, tests call `Greet` directly and never need to start the server.
 
 Original exercises are available under the [MIT license](LICENSE).

@@ -4,7 +4,7 @@
 
 跟随 Chris James 的《Learn Go with Tests》练习测试驱动开发。每个主题使用独立的 Go 包，测试和实现放在同一目录。
 
-**当前进度：Maps 章节。** 已完成问候语、整数、迭代、数组以及结构体与接口练习，正在学习用 map 构建可增删改查的字典。
+**当前进度：依赖注入章节。** 已完成问候语、整数、迭代、数组、结构体与接口以及 Maps 练习，正在学习通过接口注入输出目标。
 
 ## 环境准备
 
@@ -54,6 +54,12 @@ go test -v ./lessons/structs
 go test -v ./lessons/maps
 ```
 
+运行依赖注入练习：
+
+```powershell
+go test -v ./lessons/di
+```
+
 常用选项：
 
 | 命令 | 用途 |
@@ -67,6 +73,20 @@ go test -v ./lessons/maps
 | `go test -v -run 'TestHello/in Spanish' ./lessons/hello` | 只运行指定子测试 |
 
 测试文件以 `_test.go` 结尾，测试函数以 `Test` 开头，并接收 `t *testing.T`。TDD 的基本循环是：先写一个失败的测试，写最少的代码让它通过，再在测试保护下重构。
+
+## 运行 Go 程序
+
+仓库中的大多数章节是供 `go test` 使用的包。可执行程序必须声明 `package main`，并提供 `func main()` 作为入口。依赖注入章节包含一个可运行的 HTTP 服务器入口：
+
+```powershell
+go run ./lessons/di
+```
+
+启动后访问 <http://localhost:5000>，页面会显示 `Hello, world`。在终端按 `Ctrl+C` 停止服务器。`go run` 会临时编译并运行程序；如需生成 Windows 可执行文件，可以使用：
+
+```powershell
+go build -o greeter.exe ./lessons/di
+```
 
 ## 包与目录
 
@@ -110,6 +130,7 @@ godoc -http=:8000
 | [04 数组与切片](lessons/arrays) | 用 `Sum`、`SumAll` 和 `SumAllTails` 学习切片、可变参数、`append`、切片尾部和切片比较。 |
 | [05 结构体、方法与接口](lessons/structs) | 为矩形、圆形和三角形实现 `Area` 方法，通过 `Shape` 接口和表驱动子测试验证共同的面积行为。 |
 | [06 Maps](lessons/maps) | 用 `Dictionary` 实现单词的查找、添加、更新和删除，并用自定义错误区分失败原因。 |
+| [07 依赖注入](lessons/di) | 让 `Greet` 接收 `io.Writer`，在测试中写入内存缓冲区，在 HTTP 服务中写入响应。 |
 
 问候语练习用 `t.Run` 将不同场景组织为子测试，用 `t.Helper()` 标记共享的断言辅助函数，并通过 `switch` 选择不同语言的问候前缀。这样测试失败时会指出具体场景和调用测试辅助函数的位置。
 
@@ -120,5 +141,7 @@ godoc -http=:8000
 结构体练习用字段描述 `Rectangle`、`Circle` 和 `Triangle`，并为每种类型定义返回 `float64` 的 `Area()` 方法。只要类型实现这个方法，就会自动满足 `Shape` 接口。测试把名称、形状和期望面积放入表格，通过 `t.Run` 对所有形状运行相同的断言。
 
 Maps 练习把 `map[string]string` 定义为命名类型 `Dictionary`，让查找、添加、更新和删除可以写成它的方法。`DictionaryErr` 实现 `Error() string` 后满足 `error` 接口；`ErrNotFound`、`ErrWordExists` 和 `ErrWordDoesNotExist` 作为稳定的错误值，让测试能够直接比较具体失败原因。共享断言使用 `t.Helper()`，使失败位置指向实际测试场景。
+
+依赖注入练习让 `Greet` 依赖抽象的 `io.Writer`，而不是直接调用 `fmt.Println`。`bytes.Buffer` 和 `http.ResponseWriter` 都实现了这个接口，因此相同的问候逻辑既能被快速测试，也能用于 HTTP 响应。虽然代码属于可执行的 `package main`，测试会直接调用 `Greet`，不需要先启动服务器。
 
 原创练习采用 [MIT 许可证](LICENSE)。
