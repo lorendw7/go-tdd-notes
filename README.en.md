@@ -4,7 +4,7 @@
 
 Personal exercises following Chris James's *Learn Go with Tests*. Each topic has its own Go package with tests alongside the implementation.
 
-**Current progress: Structs, methods, and interfaces.** The greetings, integers, iteration, and arrays exercises are complete; the current topic is handling different shapes through one interface.
+**Current progress: Maps.** The greetings, integers, iteration, arrays, and structs and interfaces exercises are complete; the current topic is building a dictionary with create, read, update, and delete operations.
 
 ## Prerequisites
 
@@ -46,6 +46,12 @@ Run the structs and interfaces exercise:
 
 ```powershell
 go test -v ./lessons/structs
+```
+
+Run the maps dictionary exercise:
+
+```powershell
+go test -v ./lessons/maps
 ```
 
 Useful variations:
@@ -103,6 +109,7 @@ Open <http://localhost:8000> after it starts and press `Ctrl+C` to stop it. Mode
 | [03 Iteration](lessons/iteration) | Use `for` to repeat a string and `BenchmarkRepeat` to measure its average execution time. |
 | [04 Arrays and slices](lessons/arrays) | Use `Sum`, `SumAll`, and `SumAllTails` to learn slices, variadic arguments, `append`, slice tails, and slice comparison. |
 | [05 Structs, methods, and interfaces](lessons/structs) | Implement `Area` methods for rectangles, circles, and triangles, then verify their shared behavior through the `Shape` interface and table-driven subtests. |
+| [06 Maps](lessons/maps) | Use `Dictionary` to search, add, update, and delete words, with custom errors distinguishing failure cases. |
 
 The greetings exercise uses `t.Run` to organize scenarios as subtests, `t.Helper()` to mark the shared assertion helper, and a `switch` to choose the language-specific greeting prefix. Failures can therefore identify both the scenario and the assertion call site.
 
@@ -111,5 +118,7 @@ Benchmark functions must live in a `_test.go` file, start with `Benchmark`, and 
 The arrays exercise replaces a fixed-length `[5]int` with an arbitrary-length `[]int`. `SumAll(numbersToSum ...[]int)` accepts any number of slices and returns one total for each; `SumAllTails` uses `numbers[1:]` to omit the first element while safely handling empty slices. Tests use `reflect.DeepEqual` to compare slice contents.
 
 The structs exercise describes `Rectangle`, `Circle`, and `Triangle` with fields and gives each type an `Area() float64` method. Any type implementing that method satisfies `Shape` automatically. A table of names, shapes, and expected areas lets `t.Run` apply the same assertion to every shape.
+
+The maps exercise defines `map[string]string` as the named `Dictionary` type so search, add, update, and delete behavior can be expressed as methods. `DictionaryErr` satisfies `error` by implementing `Error() string`; the stable `ErrNotFound`, `ErrWordExists`, and `ErrWordDoesNotExist` values let tests compare exact failure cases. Shared assertions call `t.Helper()` so failures point to the scenario that invoked them.
 
 Original exercises are available under the [MIT license](LICENSE).
