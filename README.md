@@ -4,7 +4,7 @@
 
 跟随 Chris James 的《Learn Go with Tests》练习测试驱动开发。每个主题使用独立的 Go 包，测试和实现放在同一目录。
 
-**当前进度：Mocking 章节。** 已完成前面的依赖注入练习，正在用倒计时学习通过测试替身验证输出内容和操作顺序。
+**当前进度：Select 章节。** 已加入并发网站检查和网站竞速练习，正在学习 goroutine、channel、`select` 与超时处理。
 
 ## 环境准备
 
@@ -65,6 +65,16 @@ go test -v ./lessons/di
 ```powershell
 go test -v ./lessons/mocking
 ```
+
+运行并发与 Select 练习：
+
+```powershell
+go test -v ./lessons/concurrency ./lessons/select
+go test -race ./lessons/concurrency ./lessons/select
+go test -bench . -run '^$' ./lessons/concurrency
+```
+
+`-race` 用于检测运行过程中出现的数据竞争，需要支持竞态检测的 Go 环境；基准测试使用模拟检查函数，不访问外部网站。
 
 常用选项：
 
@@ -146,6 +156,8 @@ godoc -http=:8000
 | [06 Maps](lessons/maps) | 用 `Dictionary` 实现单词的查找、添加、更新和删除，并用自定义错误区分失败原因。 |
 | [07 依赖注入](lessons/di) | 让 `Greet` 接收 `io.Writer`，在测试中写入内存缓冲区，在 HTTP 服务中写入响应。 |
 | [08 Mocking](lessons/mocking) | 为倒计时注入 `io.Writer` 和 `Sleeper`，分别验证输出内容与休眠、打印的调用顺序。 |
+| [09 并发](lessons/concurrency) | 每个网址由独立 goroutine 检查，通过 channel 汇总结果，由接收方统一写入 map。 |
+| [10 Select](lessons/select) | 同时等待两个网站的完成通知和超时信号，用本地测试服务器验证竞速与超时行为。 |
 
 问候语练习用 `t.Run` 将不同场景组织为子测试，用 `t.Helper()` 标记共享的断言辅助函数，并通过 `switch` 选择不同语言的问候前缀。这样测试失败时会指出具体场景和调用测试辅助函数的位置。
 
@@ -178,5 +190,68 @@ Maps 练习把 `map[string]string` 定义为命名类型 `Dictionary`，让查�
 曾经失败的原因是循环只处理 `3`、`2`、`1`，循环外直接打印了 `Go!`。在 `fmt.Fprint(out, finalWord)` 前补上 `sleeper.Sleep()` 后，最后两次输出之间才有等待。现有子测试名 `sleep after every print` 沿用教材，实际断言的是每次打印前休眠，应以 `want` 中的顺序为准。
 
 早期的 `SpySleeper` 只统计休眠次数，目前仍保留在代码中，但测试已改用 `CountdownOperationsSpy`。顺序断言也覆盖了休眠四次的要求，因此不再需要单独的计数断言。
+
+### 并发：goroutine 与 channel
+
+`checkWebsite(url)` 是普通函数调用，当前代码等它返回才继续；`go checkWebsite(url)` 启动一个 goroutine 执行函数，当前代码继续向下运行。执行顺序不确定，`main` 返回时也不会自动等待其他 goroutine。
+
+channel 是 goroutine 之间传递数据的通道。下面三行分别表示创建、发送和接收，发送与接收需要在能相互配合的 goroutine 中执行：
+
+```go
+ch := make(chan string) // 创建只能传递 string 的无缓冲通道
+ch <- "完成"            // 发送；等待接收方准备好
+message := <-ch        // 接收；等待发送方准备好
+```
+
+可以运行的最小配合方式是：
+
+```go
+ch := make(chan string)
+go func() {
+    ch <- "完成"
+}()
+message := <-ch
+fmt.Println(message)
+```
+
+`go func(u string) { ... }(url)` 定义并调用匿名函数，把 `url` 作为参数 `u`，并让这次调用在 goroutine 中执行。
+
+在 `CheckWebsites` 中，`WebsiteChecker` 是 `func(string) bool` 的命名函数类型。每个 goroutine 执行 `wc(u)`，将网址和结果打包成 `result{u, wc(u)}`，发送到 `resultChannel`。`result` 的 `string` 和 `bool` 是嵌入字段，因此可以用 `.string` 和 `.bool` 访问。
+
+接收方循环 `len(urls)` 次，每次接收一个结果并写入 map。结果到达顺序不固定，但每个结果都带着网址。只有接收方修改 map，因此避免了多个检查任务同时写这个 map；函数收齐结果后才返回。测试使用替身函数，基准测试为每次检查模拟 20 毫秒延迟。
+
+### Select：等待多个通道
+
+`select` 的 `case` 是通道的发送或接收操作。一个分支就绪就可以执行；多个分支同时就绪时随机选一个；没有就绪分支时等待。如果有 `default`，没有就绪分支时立即执行它。一次 `select` 只执行一个分支，不会自动循环。
+
+教材中的竞速逻辑可以展开为下面的示意代码：
+
+```go
+channelA := ping(a)
+channelB := ping(b)
+
+select {
+case <-channelA:
+    return a, nil
+case <-channelB:
+    return b, nil
+case <-time.After(timeout):
+    return "", fmt.Errorf("等待超时")
+}
+```
+
+`ping(url string) chan bool` 接收网址并返回一个布尔通道。函数创建通道，启动 goroutine 执行 `http.Get(url)`，然后立即返回通道。请求调用返回后，goroutine 执行 `ch <- true` 发送通知。`true` 只是完成信号，不代表 HTTP 请求成功。
+
+`case <-ping(a):` 表示调用 `ping(a)` 取得通道，然后等待接收通知，不保存收到的值。进入 `select` 时两个 `ping` 都会调用，不会等第一个请求结束才启动第二个。两个通道都就绪时随机选一个，因此这里不是精确的响应时间测量。
+
+`time.After(timeout)` 返回一个到时会发送通知的通道。如果两个请求都未能在这之前提供可接收的通知，超时分支可以返回错误。`Racer` 使用默认十秒超时，`ConfigurableRacer` 允许测试传入更短的时间。`(winner string, error error)` 是命名返回值列表；`return a, nil` 返回网址和“没有错误”。
+
+测试使用 `httptest.NewServer` 创建本地 HTTP 服务，通过不同延迟控制响应速度。`defer server.Close()` 将关闭服务器的操作安排在当前测试函数返回前执行。这样无需依赖真实网站；超时测试使用毫秒级配置，无需等十秒。
+
+当前保留的是教材的中间实现，后续需要完善：
+
+- `ping` 使用无缓冲通道发送 `true`，落败或超时后的发送没有接收方，会使 goroutine 一直阻塞。可以改为关闭通道发出完成通知，例如使用 `chan struct{}` 配合 `close(ch)`。
+- HTTP 错误被忽略，成功响应的 `Body` 也尚未关闭；`measureResponseTime` 是保留的早期实现，当前竞速流程不使用它。
+- `select` 超时只停止等待，并不会取消 HTTP 请求。取消请求需要另行传递取消信号，例如使用带超时的 context。
 
 原创练习采用 [MIT 许可证](LICENSE)。

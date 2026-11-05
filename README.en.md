@@ -4,7 +4,7 @@
 
 Personal exercises following Chris James's *Learn Go with Tests*. Each topic has its own Go package with tests alongside the implementation.
 
-**Current progress: Mocking.** The earlier dependency injection exercise is complete; the countdown exercise now uses test doubles to verify output content and operation order.
+**Current progress: Select.** Concurrent website checking and racing exercises now cover goroutines, channels, `select`, and timeouts.
 
 ## Prerequisites
 
@@ -65,6 +65,16 @@ Run the mocking countdown tests:
 ```powershell
 go test -v ./lessons/mocking
 ```
+
+Run the concurrency and select exercises:
+
+```powershell
+go test -v ./lessons/concurrency ./lessons/select
+go test -race ./lessons/concurrency ./lessons/select
+go test -bench . -run '^$' ./lessons/concurrency
+```
+
+`-race` detects data races during execution and requires a Go environment with race detector support. The benchmark uses a stub checker rather than external websites.
 
 Useful variations:
 
@@ -146,6 +156,8 @@ Open <http://localhost:8000> after it starts and press `Ctrl+C` to stop it. Mode
 | [06 Maps](lessons/maps) | Use `Dictionary` to search, add, update, and delete words, with custom errors distinguishing failure cases. |
 | [07 Dependency injection](lessons/di) | Pass an `io.Writer` to `Greet`, writing to an in-memory buffer in tests and an HTTP response in the server. |
 | [08 Mocking](lessons/mocking) | Inject `io.Writer` and `Sleeper` into a countdown, testing output content separately from the order of sleeping and printing. |
+| [09 Concurrency](lessons/concurrency) | Check each URL in a goroutine, collect results through a channel, and let the receiver alone update the map. |
+| [10 Select](lessons/select) | Wait for two website completion signals and a timeout, using local test servers to verify racing and timeout behavior. |
 
 The greetings exercise uses `t.Run` to organize scenarios as subtests, `t.Helper()` to mark the shared assertion helper, and a `switch` to choose the language-specific greeting prefix. Failures can therefore identify both the scenario and the assertion call site.
 
@@ -178,5 +190,68 @@ Missing sleep: sleep write sleep write sleep write write
 The earlier failure occurred because the loop handled only `3`, `2`, and `1`, then printed `Go!` immediately after leaving the loop. Adding `sleeper.Sleep()` before `fmt.Fprint(out, finalWord)` restores the wait between the final two outputs. The existing subtest name, `sleep after every print`, follows the book, but its assertion actually requires sleeping before each print; follow the sequence in `want`.
 
 The earlier `SpySleeper` only counts sleep calls. It remains in the code, but the tests now use `CountdownOperationsSpy`. The order assertion also verifies four sleep calls, so a separate count assertion is no longer needed.
+
+### Concurrency: goroutines and channels
+
+`checkWebsite(url)` waits for the function to return; `go checkWebsite(url)` starts a goroutine and lets the calling code continue. Execution order is not guaranteed, and returning from `main` does not wait for other goroutines.
+
+A channel transfers values between goroutines. These statements illustrate creation, sending, and receiving; an unbuffered send and receive must be paired in cooperating goroutines:
+
+```go
+ch := make(chan string) // Create an unbuffered string channel
+ch <- "done"           // Send; wait for a receiver
+message := <-ch        // Receive; wait for a sender
+```
+
+A minimal cooperating example is:
+
+```go
+ch := make(chan string)
+go func() {
+    ch <- "done"
+}()
+message := <-ch
+fmt.Println(message)
+```
+
+`go func(u string) { ... }(url)` defines and invokes an anonymous function, passes `url` as `u`, and runs the call in a goroutine.
+
+In `CheckWebsites`, `WebsiteChecker` is a named function type, `func(string) bool`. Each goroutine runs `wc(u)` and sends the URL and outcome as `result{u, wc(u)}`. The struct embeds `string` and `bool` fields, accessed as `.string` and `.bool`.
+
+The receiver collects `len(urls)` results and writes them into the map. Results can arrive in any order because each includes its URL. Only the receiver modifies the map, avoiding concurrent writes by checker goroutines, and the function returns after collecting every result. Tests use a stub checker; the benchmark simulates a 20-millisecond delay per check.
+
+### Select: waiting on multiple channels
+
+Each `select` case is a channel send or receive. One ready case can run; if several are ready, one is chosen randomly. If none are ready, selection blocks unless there is a `default` case, which runs immediately instead. A single `select` executes one branch and does not loop automatically.
+
+The racing logic can be expanded into this illustrative snippet:
+
+```go
+channelA := ping(a)
+channelB := ping(b)
+
+select {
+case <-channelA:
+    return a, nil
+case <-channelB:
+    return b, nil
+case <-time.After(timeout):
+    return "", fmt.Errorf("timed out")
+}
+```
+
+`ping(url string) chan bool` accepts a URL and returns a boolean channel. It creates the channel, starts a goroutine to call `http.Get(url)`, and returns the channel without waiting for the request. After the HTTP call returns, the goroutine sends `true`. This is a completion signal, not evidence of a successful request.
+
+`case <-ping(a):` calls `ping(a)` to obtain a channel, then waits to receive without storing the received value. Both calls to `ping` are evaluated on entering the `select`; the second request does not wait for the first to finish. If both channels are ready, selection is random, so this is not precise response-time measurement.
+
+`time.After(timeout)` returns a channel that sends a notification when the duration elapses. The timeout branch can return an error if neither request has provided a receivable notification before then. `Racer` defaults to ten seconds; `ConfigurableRacer` lets tests use a shorter duration. `(winner string, error error)` names the two return values; `return a, nil` returns a URL with no error.
+
+Tests create local HTTP services with `httptest.NewServer` and control response speed through delays. `defer server.Close()` schedules cleanup before the current test function returns. No external websites are required, and the timeout test uses milliseconds instead of waiting ten seconds.
+
+The current code preserves an intermediate tutorial implementation with work remaining:
+
+- `ping` sends `true` on an unbuffered channel. A losing or timed-out request has no receiver, so its goroutine blocks on sending. Closing a notification channel, such as `chan struct{}` with `close(ch)`, avoids this blocked send.
+- HTTP errors are ignored, and successful response bodies are not yet closed. `measureResponseTime` remains from the earlier approach but is not used by the current racing flow.
+- A `select` timeout stops waiting but does not cancel HTTP requests. Request cancellation requires a separate mechanism, such as a context with a timeout.
 
 Original exercises are available under the [MIT license](LICENSE).
