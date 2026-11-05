@@ -4,7 +4,7 @@
 
 Personal exercises following Chris James's *Learn Go with Tests*. Each topic has its own Go package with tests alongside the implementation.
 
-**Current progress: Dependency injection.** The greetings, integers, iteration, arrays, structs and interfaces, and maps exercises are complete; the current topic is injecting output destinations through an interface.
+**Current progress: Mocking.** The earlier dependency injection exercise is complete; the countdown exercise now uses test doubles to verify output content and operation order.
 
 ## Prerequisites
 
@@ -60,6 +60,12 @@ Run the dependency injection exercise:
 go test -v ./lessons/di
 ```
 
+Run the mocking countdown tests:
+
+```powershell
+go test -v ./lessons/mocking
+```
+
 Useful variations:
 
 | Command | Purpose |
@@ -87,6 +93,14 @@ Open <http://localhost:5000> after it starts to see `Hello, world`, and press `C
 ```powershell
 go build -o greeter.exe ./lessons/di
 ```
+
+Run the actual countdown:
+
+```powershell
+go run ./lessons/mocking
+```
+
+The program waits one second before each output: `3`, `2`, `1`, and `Go!`, for about four seconds in total. Tests replace real sleeping with a spy and do not wait.
 
 ## Packages and directories
 
@@ -131,6 +145,7 @@ Open <http://localhost:8000> after it starts and press `Ctrl+C` to stop it. Mode
 | [05 Structs, methods, and interfaces](lessons/structs) | Implement `Area` methods for rectangles, circles, and triangles, then verify their shared behavior through the `Shape` interface and table-driven subtests. |
 | [06 Maps](lessons/maps) | Use `Dictionary` to search, add, update, and delete words, with custom errors distinguishing failure cases. |
 | [07 Dependency injection](lessons/di) | Pass an `io.Writer` to `Greet`, writing to an in-memory buffer in tests and an HTTP response in the server. |
+| [08 Mocking](lessons/mocking) | Inject `io.Writer` and `Sleeper` into a countdown, testing output content separately from the order of sleeping and printing. |
 
 The greetings exercise uses `t.Run` to organize scenarios as subtests, `t.Helper()` to mark the shared assertion helper, and a `switch` to choose the language-specific greeting prefix. Failures can therefore identify both the scenario and the assertion call site.
 
@@ -143,5 +158,25 @@ The structs exercise describes `Rectangle`, `Circle`, and `Triangle` with fields
 The maps exercise defines `map[string]string` as the named `Dictionary` type so search, add, update, and delete behavior can be expressed as methods. `DictionaryErr` satisfies `error` by implementing `Error() string`; the stable `ErrNotFound`, `ErrWordExists`, and `ErrWordDoesNotExist` values let tests compare exact failure cases. Shared assertions call `t.Helper()` so failures point to the scenario that invoked them.
 
 The dependency injection exercise makes `Greet` depend on the abstract `io.Writer` instead of calling `fmt.Println` directly. Both `bytes.Buffer` and `http.ResponseWriter` implement that interface, so the same greeting logic is easy to test and reuse in an HTTP response. Although the code is an executable `package main`, tests call `Greet` directly and never need to start the server.
+
+### Mocking: recording operation order
+
+`Countdown(out io.Writer, sleeper Sleeper)` accepts an output destination and a sleeping dependency. The executable uses `os.Stdout` and a `ConfigurableSleeper` that calls `time.Sleep`; the test's `CountdownOperationsSpy` records calls without actually sleeping.
+
+Two subtests verify different behaviors:
+
+- **Output content**: `Countdown(buffer, &CountdownOperationsSpy{})` captures output in a `bytes.Buffer` and checks for `3\n2\n1\nGo!`. The spy only handles sleeping, and this test does not inspect its records.
+- **Operation order**: `Countdown(spy, spy)` passes the same spy as both dependencies. Its `Write` and `Sleep` methods satisfy both interfaces and append to the same `Calls` slice, preserving their relative order. `reflect.DeepEqual` compares the recorded sequence with the expected sequence.
+
+Checking output and sleep counts alone cannot detect an implementation that sleeps repeatedly before printing all the numbers together. The order test requires a sleep before every output, including `Go!`:
+
+```text
+Expected:      sleep write sleep write sleep write sleep write
+Missing sleep: sleep write sleep write sleep write write
+```
+
+The earlier failure occurred because the loop handled only `3`, `2`, and `1`, then printed `Go!` immediately after leaving the loop. Adding `sleeper.Sleep()` before `fmt.Fprint(out, finalWord)` restores the wait between the final two outputs. The existing subtest name, `sleep after every print`, follows the book, but its assertion actually requires sleeping before each print; follow the sequence in `want`.
+
+The earlier `SpySleeper` only counts sleep calls. It remains in the code, but the tests now use `CountdownOperationsSpy`. The order assertion also verifies four sleep calls, so a separate count assertion is no longer needed.
 
 Original exercises are available under the [MIT license](LICENSE).

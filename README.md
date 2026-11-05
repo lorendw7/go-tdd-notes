@@ -4,7 +4,7 @@
 
 跟随 Chris James 的《Learn Go with Tests》练习测试驱动开发。每个主题使用独立的 Go 包，测试和实现放在同一目录。
 
-**当前进度：依赖注入章节。** 已完成问候语、整数、迭代、数组、结构体与接口以及 Maps 练习，正在学习通过接口注入输出目标。
+**当前进度：Mocking 章节。** 已完成前面的依赖注入练习，正在用倒计时学习通过测试替身验证输出内容和操作顺序。
 
 ## 环境准备
 
@@ -60,6 +60,12 @@ go test -v ./lessons/maps
 go test -v ./lessons/di
 ```
 
+运行 Mocking 倒计时练习的测试：
+
+```powershell
+go test -v ./lessons/mocking
+```
+
 常用选项：
 
 | 命令 | 用途 |
@@ -87,6 +93,14 @@ go run ./lessons/di
 ```powershell
 go build -o greeter.exe ./lessons/di
 ```
+
+运行实际倒计时程序：
+
+```powershell
+go run ./lessons/mocking
+```
+
+程序每次等待一秒后输出 `3`、`2`、`1` 和 `Go!`，共等待约四秒。测试使用 spy 替代真实休眠，无需等待。
 
 ## 包与目录
 
@@ -131,6 +145,7 @@ godoc -http=:8000
 | [05 结构体、方法与接口](lessons/structs) | 为矩形、圆形和三角形实现 `Area` 方法，通过 `Shape` 接口和表驱动子测试验证共同的面积行为。 |
 | [06 Maps](lessons/maps) | 用 `Dictionary` 实现单词的查找、添加、更新和删除，并用自定义错误区分失败原因。 |
 | [07 依赖注入](lessons/di) | 让 `Greet` 接收 `io.Writer`，在测试中写入内存缓冲区，在 HTTP 服务中写入响应。 |
+| [08 Mocking](lessons/mocking) | 为倒计时注入 `io.Writer` 和 `Sleeper`，分别验证输出内容与休眠、打印的调用顺序。 |
 
 问候语练习用 `t.Run` 将不同场景组织为子测试，用 `t.Helper()` 标记共享的断言辅助函数，并通过 `switch` 选择不同语言的问候前缀。这样测试失败时会指出具体场景和调用测试辅助函数的位置。
 
@@ -143,5 +158,25 @@ godoc -http=:8000
 Maps 练习把 `map[string]string` 定义为命名类型 `Dictionary`，让查找、添加、更新和删除可以写成它的方法。`DictionaryErr` 实现 `Error() string` 后满足 `error` 接口；`ErrNotFound`、`ErrWordExists` 和 `ErrWordDoesNotExist` 作为稳定的错误值，让测试能够直接比较具体失败原因。共享断言使用 `t.Helper()`，使失败位置指向实际测试场景。
 
 依赖注入练习让 `Greet` 依赖抽象的 `io.Writer`，而不是直接调用 `fmt.Println`。`bytes.Buffer` 和 `http.ResponseWriter` 都实现了这个接口，因此相同的问候逻辑既能被快速测试，也能用于 HTTP 响应。虽然代码属于可执行的 `package main`，测试会直接调用 `Greet`，不需要先启动服务器。
+
+### Mocking：记录调用顺序
+
+`Countdown(out io.Writer, sleeper Sleeper)` 接收输出目标和休眠工具。实际运行时使用 `os.Stdout` 和调用 `time.Sleep` 的 `ConfigurableSleeper`；测试中的 `CountdownOperationsSpy` 只记录调用，不进行真实休眠。
+
+两个子测试分别验证不同的行为：
+
+- **输出内容**：`Countdown(buffer, &CountdownOperationsSpy{})` 用 `bytes.Buffer` 保存输出，检查内容是否为 `3\n2\n1\nGo!`。spy 只承担休眠职责，这个测试不读取它的记录。
+- **操作顺序**：`Countdown(spy, spy)` 把同一个 spy 同时作为输出目标和休眠工具。它拥有 `Write` 和 `Sleep` 方法，因此同时满足两个接口；两种操作会写入同一个 `Calls` 切片，保留相对顺序。`reflect.DeepEqual` 检查实际记录是否与期望一致。
+
+只检查输出和休眠次数，无法发现“先连续休眠，再集中打印”的错误。顺序测试要求每次打印前都休眠，包括最后的 `Go!`：
+
+```text
+期望：sleep write sleep write sleep write sleep write
+少一次休眠：sleep write sleep write sleep write write
+```
+
+曾经失败的原因是循环只处理 `3`、`2`、`1`，循环外直接打印了 `Go!`。在 `fmt.Fprint(out, finalWord)` 前补上 `sleeper.Sleep()` 后，最后两次输出之间才有等待。现有子测试名 `sleep after every print` 沿用教材，实际断言的是每次打印前休眠，应以 `want` 中的顺序为准。
+
+早期的 `SpySleeper` 只统计休眠次数，目前仍保留在代码中，但测试已改用 `CountdownOperationsSpy`。顺序断言也覆盖了休眠四次的要求，因此不再需要单独的计数断言。
 
 原创练习采用 [MIT 许可证](LICENSE)。
