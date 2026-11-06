@@ -4,7 +4,7 @@
 
 Personal exercises following Chris James's *Learn Go with Tests*. Each topic has its own Go package with tests alongside the implementation.
 
-**Current progress: Select.** Concurrent website checking and racing exercises now cover goroutines, channels, `select`, and timeouts.
+**Current progress: Reflection.** The concurrency and Select exercises are complete; the current exercise uses `reflect` to build a recursive string-walking function.
 
 ## Prerequisites
 
@@ -75,6 +75,12 @@ go test -bench . -run '^$' ./lessons/concurrency
 ```
 
 `-race` detects data races during execution and requires a Go environment with race detector support. The benchmark uses a stub checker rather than external websites.
+
+Run the reflection exercise:
+
+```powershell
+go test -v ./lessons/reflection
+```
 
 Useful variations:
 
@@ -158,6 +164,7 @@ Open <http://localhost:8000> after it starts and press `Ctrl+C` to stop it. Mode
 | [08 Mocking](lessons/mocking) | Inject `io.Writer` and `Sleeper` into a countdown, testing output content separately from the order of sleeping and printing. |
 | [09 Concurrency](lessons/concurrency) | Check each URL in a goroutine, collect results through a channel, and let the receiver alone update the map. |
 | [10 Select](lessons/select) | Wait for two website completion signals and a timeout, using local test servers to verify racing and timeout behavior. |
+| [11 Reflection](lessons/reflection) | Recursively inspect structs, pointers, slices, arrays, maps, channels, and function results with `reflect.Value`, collecting their strings. |
 
 The greetings exercise uses `t.Run` to organize scenarios as subtests, `t.Helper()` to mark the shared assertion helper, and a `switch` to choose the language-specific greeting prefix. Failures can therefore identify both the scenario and the assertion call site.
 
@@ -253,5 +260,44 @@ The current code preserves an intermediate tutorial implementation with work rem
 - `ping` sends `true` on an unbuffered channel. A losing or timed-out request has no receiver, so its goroutine blocks on sending. Closing a notification channel, such as `chan struct{}` with `close(ch)`, avoids this blocked send.
 - HTTP errors are ignored, and successful response bodies are not yet closed. `measureResponseTime` remains from the earlier approach but is not used by the current racing flow.
 - A `select` timeout stops waiting but does not cancel HTTP requests. Request cancellation requires a separate mechanism, such as a context with a timeout.
+
+### Reflection: inspecting values at runtime
+
+Reflection lets a program inspect a value's category and internal structure at runtime. `interface{}` accepts a value of any type and can also be written as its modern alias, `any`; the value still retains its concrete type. `reflect.ValueOf(x)` wraps an ordinary value in `reflect.Value`, and `Kind()` reports whether it is a string, struct, slice, or another category.
+
+The exercise starts with:
+
+```go
+func walk(x interface{}, fn func(input string))
+```
+
+`x` is the value to inspect, and `fn` is called for every string found. Tests pass a closure that appends each string to `got`:
+
+```go
+walk(input, func(s string) {
+    got = append(got, s)
+})
+```
+
+`walk` first calls `getValue`. It obtains a reflected value with `reflect.ValueOf`; if `Kind()` is `reflect.Pointer`, `Elem()` retrieves the pointed-to value. The local `walkValue` helper converts a child `reflect.Value` back to an interface value with `Interface()` and recursively calls `walk`.
+
+Each category has a traversal rule:
+
+| `Kind` | Operation |
+| --- | --- |
+| `reflect.String` | Extract text with `String()` and call `fn` |
+| `reflect.Struct` | Traverse fields with `NumField()` and `Field(i)` |
+| `reflect.Slice`, `reflect.Array` | Traverse elements with `Len()` and `Index(i)` |
+| `reflect.Map` | Obtain keys with `MapKeys()` and recursively inspect each `MapIndex(key)` value |
+| `reflect.Chan` | Receive with `Recv()` until a closed channel returns `ok == false` |
+| `reflect.Func` | Invoke a no-argument function with `Call(nil)` and recursively inspect every result |
+
+Kinds without a matching branch, such as integers, are ignored. The algorithm is simply: open containers and recurse; call `fn` when a string is reached.
+
+The tests begin with anonymous structs, then use a table-driven slice to cover multiple fields, non-string fields, nested structs, pointers, slices, and arrays. `[]struct{ ... }` is a slice whose elements are anonymous structs; each element stores a test name, input, and expected calls. `t.Run(test.Name, ...)` creates one subtest per row.
+
+Map iteration order is unspecified, so that test checks the result length and membership instead of comparing order. The channel test sends two `Profile` values from a goroutine and closes the channel; an unbuffered channel would otherwise block when sending cannot pair with receiving, and the receiver would not know when input is complete. The function test passes a `func() (Profile, Profile)` value itself. `nil` in `Call(nil)` means no arguments, and all returned values arrive as `[]reflect.Value` for recursive processing.
+
+The current implementation has deliberate boundaries: `Call(nil)` only supports functions with no parameters; an open channel that stops sending leaves `Recv()` waiting; invalid values, nil pointers, and fields that cannot be converted with `Interface()` are not handled separately. Reflection is flexible but gives up some compile-time type checking, so code with known types generally favors interfaces, generics, or direct field access.
 
 Original exercises are available under the [MIT license](LICENSE).

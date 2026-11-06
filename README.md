@@ -4,7 +4,7 @@
 
 跟随 Chris James 的《Learn Go with Tests》练习测试驱动开发。每个主题使用独立的 Go 包，测试和实现放在同一目录。
 
-**当前进度：Select 章节。** 已加入并发网站检查和网站竞速练习，正在学习 goroutine、channel、`select` 与超时处理。
+**当前进度：反射章节。** 已完成并发与 Select 练习，正在用 `reflect` 编写能够递归查找字符串的 `walk` 函数。
 
 ## 环境准备
 
@@ -75,6 +75,12 @@ go test -bench . -run '^$' ./lessons/concurrency
 ```
 
 `-race` 用于检测运行过程中出现的数据竞争，需要支持竞态检测的 Go 环境；基准测试使用模拟检查函数，不访问外部网站。
+
+运行反射练习：
+
+```powershell
+go test -v ./lessons/reflection
+```
 
 常用选项：
 
@@ -158,6 +164,7 @@ godoc -http=:8000
 | [08 Mocking](lessons/mocking) | 为倒计时注入 `io.Writer` 和 `Sleeper`，分别验证输出内容与休眠、打印的调用顺序。 |
 | [09 并发](lessons/concurrency) | 每个网址由独立 goroutine 检查，通过 channel 汇总结果，由接收方统一写入 map。 |
 | [10 Select](lessons/select) | 同时等待两个网站的完成通知和超时信号，用本地测试服务器验证竞速与超时行为。 |
+| [11 反射](lessons/reflection) | 用 `reflect.Value` 递归遍历结构体、指针、切片、数组、map、channel 和函数返回值，收集其中的字符串。 |
 
 问候语练习用 `t.Run` 将不同场景组织为子测试，用 `t.Helper()` 标记共享的断言辅助函数，并通过 `switch` 选择不同语言的问候前缀。这样测试失败时会指出具体场景和调用测试辅助函数的位置。
 
@@ -253,5 +260,44 @@ case <-time.After(timeout):
 - `ping` 使用无缓冲通道发送 `true`，落败或超时后的发送没有接收方，会使 goroutine 一直阻塞。可以改为关闭通道发出完成通知，例如使用 `chan struct{}` 配合 `close(ch)`。
 - HTTP 错误被忽略，成功响应的 `Body` 也尚未关闭；`measureResponseTime` 是保留的早期实现，当前竞速流程不使用它。
 - `select` 超时只停止等待，并不会取消 HTTP 请求。取消请求需要另行传递取消信号，例如使用带超时的 context。
+
+### 反射：在运行时检查值
+
+反射允许程序在运行时检查值的类别和内部结构。`interface{}` 可以接收任意类型，现代 Go 中也可以写成别名 `any`；值进入函数后仍有自己的具体类型。`reflect.ValueOf(x)` 把普通值包装为 `reflect.Value`，`Kind()` 判断它是字符串、结构体、切片等类别。
+
+练习的入口是：
+
+```go
+func walk(x interface{}, fn func(input string))
+```
+
+`x` 是要检查的任意值，`fn` 是找到字符串时调用的函数。测试传入一个闭包，将每次收到的字符串追加到 `got`：
+
+```go
+walk(input, func(s string) {
+    got = append(got, s)
+})
+```
+
+`walk` 先调用 `getValue`。它使用 `reflect.ValueOf` 获取反射值；如果 `Kind()` 是 `reflect.Pointer`，再用 `Elem()` 取得指针指向的值。局部函数 `walkValue` 把子级 `reflect.Value` 通过 `Interface()` 转回普通接口值，然后递归调用 `walk`。
+
+不同类别的处理规则如下：
+
+| `Kind` | 处理方法 |
+| --- | --- |
+| `reflect.String` | 用 `String()` 取出文本并调用 `fn` |
+| `reflect.Struct` | 用 `NumField()` 和 `Field(i)` 遍历字段 |
+| `reflect.Slice`、`reflect.Array` | 用 `Len()` 和 `Index(i)` 遍历元素 |
+| `reflect.Map` | 用 `MapKeys()` 取得键，再用 `MapIndex(key)` 递归处理值 |
+| `reflect.Chan` | 用 `Recv()` 持续接收，直到关闭的 channel 返回 `ok == false` |
+| `reflect.Func` | 用 `Call(nil)` 调用无参函数，再递归处理全部返回值 |
+
+没有匹配分支的类型（例如整数）会被忽略。整个算法可以概括为：遇到容器就拆开并递归，遇到字符串就调用 `fn`。
+
+测试首先用匿名结构体覆盖简单场景，再通过表驱动测试加入多个字段、非字符串字段、嵌套结构体、指针、切片和数组。`[]struct{ ... }` 表示由匿名结构体组成的切片，每个元素保存测试名称、输入和期望调用结果。`t.Run(test.Name, ...)` 为每条数据创建子测试。
+
+map 的遍历顺序不固定，因此测试检查结果数量和是否包含指定值，不直接比较顺序。channel 测试在 goroutine 中发送两个 `Profile` 并调用 `close`；否则无缓冲 channel 会因为发送和接收不能配对而阻塞，接收方也无法知道数据已经结束。函数测试传入 `func() (Profile, Profile)` 本身，`Call(nil)` 中的 `nil` 表示不传实参，返回值以 `[]reflect.Value` 的形式逐个递归处理。
+
+当前实现有明确边界：`Call(nil)` 只适用于无参函数；未关闭且不再发送数据的 channel 会使 `Recv()` 一直等待；无效值、nil 指针以及不能调用 `Interface()` 的字段还没有单独处理。反射提供了很强的通用性，但会减少编译期类型检查，因此普通业务代码有明确类型时通常优先使用接口、泛型或直接访问字段。
 
 原创练习采用 [MIT 许可证](LICENSE)。
